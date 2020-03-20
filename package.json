@@ -1,6 +1,6 @@
 {
   "name": "deep-merge-changes",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Merges two or more objects, returning the same reference if the objects are equal.",
   "main": "cjs/index.js",
   "module": "lib/index.js",
