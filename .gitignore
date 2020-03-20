@@ -1,0 +1,7 @@
+*.log
+.DS_Store
+.nyc_output
+.vscode
+cjs
+coverage
+node_modules
