@@ -50,6 +50,182 @@ See [`./lib/index.spec.js`](./lib/index.spec.js) for more examples.
 1. If both the current object and the changes object are arrays, the result will completely replace the current array with the changes array, unless they are equal.
 1. If changes is not a plain object or array, the result is the changes value.
 
+## Contextual examples
+
+### Redux reducer
+
+```js
+import axios from 'axios'
+import { deepMergeChanges, OMIT } from 'deep-merge-changes'
+import keyBy from 'lodash.keyby'
+
+const FETCH_MANY_COMPLETE = 'FETCH_MANY_COMPLETE'
+const FETCH_COMPLETE = 'FETCH_COMPLETE'
+const CREATE_COMPLETE = 'CREATE_COMPLETE'
+const UPDATE_COMPLETE = 'UPDATE_COMPLETE'
+const DELETE_COMPLETE = 'DELETE_COMPLETE'
+
+const KEY = 'todos'
+
+export const todos = (state = { byId: {}, order: [] }, action) => {
+  if (action.key !== KEY) {
+    return state
+  }
+
+  switch (action.type) {
+    case FETCH_MANY_COMPLETE:
+      const { payload: todos } = action
+      
+      return deepMergeChanges(state, {
+        byId: keyBy(todos, todo => todo.id),
+        order: todos.map(todo => todo.id),
+      })
+  
+    case FETCH_COMPLETE:
+    case CREATE_COMPLETE:
+    case UPDATE_COMPLETE:
+      const { payload: todo } = action
+      
+      return deepMergeChanges(state, {
+        byId: { [todo.id]: todo },
+      })
+      
+    case DELETE_COMPLETE:
+      const { id } = action
+      
+      return deepMergeChanges(state, {
+        byId: { [id]: OMIT },
+        order: { [state[KEY].order.indexOf(id)]: OMIT },
+      })
+      
+    default:
+      return state
+  }
+}
+
+export const fetchTodos = query => dispatch =>
+  axios('/todos', { method: 'GET', params: query }).then(response =>
+    dispatch({
+      type: FETCH_MANY_COMPLETE,
+      key: KEY,
+      payload: response.data,
+    })
+  )
+
+export const fetchTodo = id => dispatch =>
+  axios(`/todos/${id}`, { method: 'GET' }).then(response =>
+    dispatch({
+      type: FETCH_COMPLETE,
+      key: KEY,
+      id,
+      payload: response.data,
+    })
+  )
+
+export const createTodo = data => dispatch =>
+  axios('/todos', { method: 'POST', data }).then(response =>
+    dispatch({
+      type: CREATE_COMPLETE,
+      key: KEY,
+      id,
+      payload: response.data,
+    })
+  )
+
+export const updateTodo = (id, data) => dispatch =>
+  axios(`/todos/${id}`, { method: 'PUT', data }).then(response =>
+    dispatch({
+      type: UPDATE_COMPLETE,
+      key: KEY,
+      id,
+      payload: response.data,
+    })
+  )
+
+export const deleteTodo = id => dispatch =>
+  axios(`/todos/${id}`, { method: 'DELETE' }).then(response =>
+    dispatch({
+      type: DELETE_COMPLETE,
+      key: KEY,
+      id,
+    })
+  )
+```
+
+### React state example
+
+```js
+import { deepMergeChanges, OMIT } from 'deep-merge-changes'
+import React, { useCallback, useMemo, useState } from 'react'
+
+const makeId = (() => {
+  let nextId = 1
+  
+  return () => nextId++
+})()
+
+const Todos = () => {
+  const [todos, setTodos] = useState({ byId: {}, order: [] })
+  
+  const createTodo = useCallback(
+    data => {
+      const id = makeId()
+    
+      setTodos(todos =>
+        deepMergeChanges(todos, {
+          byId: {
+            [id]: { ...data, id },
+          },
+          order: { [todos.order.length]: id },
+        })
+      )
+    },
+    [setTodos],
+  )
+
+  const updateTodo = useCallback(
+    (id, data) => setTodos(todos =>
+      deepMergeChanges(todos, {
+        byId: { [id]: data },
+      })
+    ),
+    [setTodos],
+  )
+  
+  const deleteTodo = useCallback(
+    id => setTodos(todos =>
+      deepMergeChanges(todos, {
+        byId: { [id]: OMIT },
+        order: { [todos.order.indexOf(id)]: OMIT },
+      }),
+    ),
+    [setTodos],
+  )
+  
+  const list = useMemo(
+    () => todos.order.map(id => todos.byId[id]),
+    [todos.order, todos.byId],
+  )
+  
+  return (
+    <ul>
+      {list.map(todo => (
+        <li key={todo.id}>
+          <Todo
+            todo={todo}
+            onUpdate={updateTodo}
+            onDelete={deleteTodo}
+          />
+        </li>
+      )}
+      <li>
+        <AddTodo onCreate={createTodo} />
+      </li>
+    </ul>
+  )
+}
+```
+
 ## API
 
 ### `deepMergeChanges(current, ...changes): any`
